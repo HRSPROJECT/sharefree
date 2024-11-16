@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FREE SHARE</title>
+  <style>
+   
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #121212;
+      color: white;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+    input, button {
+      margin: 10px;
+      padding: 10px;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+    }
+    button {
+      background-color: #4caf50;
+      color: white;
+    }
+    .qr-code, .sharing-options {
+      display: none;
+      margin-top: 15px;
+    }
+    .progress-container {
+      width: 50%;
+      margin: 10px auto;
+      background-color: #333;
+      border-radius: 50px;
+    }
+    .progress-bar {
+      width: 0%;
+      height: 20px;
+      background-color: #76c7c0;
+      transition: width 0.3s;
+      border-radius: 20PX;
+    }
+    .link-container {
+      margin-top: 10px;
+    }
+    .copy-button {
+      background-color: #555;
+      color: white;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>FREE SHARE</h2>
+
+  <input type="file" id="fileInput" multiple />
+  <button onclick="handleUpload()">Upload & Share</button>
+
+  <div class="progress-container" id="progressContainer">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <div class="qr-code">
+    <canvas id="qrCodeCanvas"></canvas>
+  </div>
+
+  <div class="link-container" id="linkContainer"></div>
+
+  <div class="sharing-options" id="sharingOptions">
+    <h3>Share Your File:</h3>
+    <button onclick="shareOnWhatsApp()">WhatsApp</button>
+    <button onclick="shareOnFacebook()">Facebook</button>
+    <button onclick="shareByEmail()">Gmail</button>
+    <button onclick="stopSharing()">Stop Sharing</button>
+  </div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.4.4/build/qrcode.min.js"></script>
+
+  <script>
+    // Firebase Configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyCNyZAmw3D8aCqNOHOw0f3YKtZWNatauN8",
+  authDomain: "hello-4105a.firebaseapp.com",
+  databaseURL: "https://hello-4105a-default-rtdb.firebaseio.com",
+  projectId: "hello-4105a",
+  storageBucket: "hello-4105a.appspot.com",
+  messagingSenderId: "978669199403",
+  appId: "1:978669199403:web:6c20e3dbaf815bba890a6e",
+  measurementId: "G-2TGPP3E88X"
+    };
+
+    // Initialize Firebase
+    const app = firebase.initializeApp(firebaseConfig);
+    const storage = firebase.storage();
+    let uploadedFiles = [];
+
+    // Handle File Upload
+    async function handleUpload() {
+      const files = document.getElementById('fileInput').files;
+      if (files.length === 0) {
+        alert("Please select files.");
+        return;
+      }
+
+      if (files.length > 1) {
+        const zipBlob = await createZip(files);
+        await uploadFile(zipBlob, 'shared_files.zip');
+      } else {
+        uploadFile(files[0]);
+      }
+    }
+
+    // Create ZIP from multiple files
+    async function createZip(files) {
+      const zip = new JSZip();
+      Array.from(files).forEach((file) => zip.file(file.name, file));
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      return zipBlob;
+    }
+
+    // Upload File to Firebase
+    function uploadFile(file, fileName = file.name) {
+      const storageRef = storage.ref('uploads/' + fileName);
+      const uploadTask = storageRef.put(file);
+
+      // Progress Bar
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          document.getElementById('progressBar').style.width = progress + '%';
+        },
+        (error) => {
+          console.error('Upload failed:', error);
+        },
+        () => {
+          uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
+            uploadedFiles.push(storageRef);
+            showSharingOptions(downloadURL);
+          });
+        }
+      );
+    }
+
+    // Show Sharing Options and QR Code
+    function showSharingOptions(url) {
+      // Generate and Display QR Code
+      const canvas = document.getElementById('qrCodeCanvas');
+      QRCode.toCanvas(canvas, url, { width: 200 }, (error) => {
+        if (error) console.error('QR Code error:', error);
+      });
+      document.querySelector('.qr-code').style.display = 'block';
+
+      // Display Link with Copy Button
+      const linkContainer = document.getElementById('linkContainer');
+      linkContainer.innerHTML = `
+        <input type="text" value="${url}" id="fileLink" readonly />
+        <button class="copy-button" onclick="copyToClipboard()">Copy</button>
+      `;
+      linkContainer.style.display = 'block';
+
+      // Show Sharing Buttons
+      document.getElementById('sharingOptions').style.display = 'block';
+    }
+
+    // Copy Link to Clipboard
+    function copyToClipboard() {
+      const linkInput = document.getElementById('fileLink');
+      linkInput.select();
+      linkInput.setSelectionRange(0, 99999);  // For mobile devices
+      document.execCommand('copy');
+      alert('Link copied to clipboard!');
+    }
+
+    // Sharing Functions
+    function shareOnWhatsApp() {
+      const url = document.getElementById('fileLink').value;
+      window.open(`https://wa.me/?text=${encodeURIComponent(url)}`, '_blank');
+    }
+
+    function shareOnFacebook() {
+      const url = document.getElementById('fileLink').value;
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+    }
+
+    function shareByEmail() {
+      const url = document.getElementById('fileLink').value;
+      window.open(`mailto:?subject=File&body=${encodeURIComponent(url)}`, '_blank');
+    }
+
+    // Stop Sharing and Delete Files
+    function stopSharing() {
+      uploadedFiles.forEach((fileRef) => {
+        fileRef.delete().then(() => {
+          console.log('File deleted.');
+        }).catch((error) => {
+          console.error('Error deleting file:', error);
+        });
+      });
+      alert('Sharing stopped, and files deleted.');
+      location.reload();
+    }
+
+    // Delete Files on Page Exit
+    window.addEventListener('beforeunload', stopSharing);
+  </script>
+</body>
+</html>
